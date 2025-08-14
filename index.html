@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Das Versteckte Wort: A German Wine Word Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+        }
+        .lora {
+            font-family: 'Lora', serif;
+        }
+        #game-grid-wrapper {
+            position: relative;
+            overflow: auto;
+            aspect-ratio: 1 / 1;
+            max-width: 100%;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            touch-action: pan-x pan-y; 
+        }
+        #game-grid, #outline-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #game-grid {
+            display: grid;
+            user-select: none;
+            padding: 10px;
+            gap: 4px;
+            box-sizing: border-box;
+        }
+        #outline-container {
+            pointer-events: none;
+        }
+        .word-outline {
+            position: absolute;
+            border: 3px solid #EF4444;
+            border-radius: 9999px;
+            box-sizing: border-box;
+            transform-origin: center;
+        }
+        .grid-cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            aspect-ratio: 1 / 1;
+            font-size: 16px;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #374151;
+            cursor: pointer;
+            transition: background-color 0.1s ease-in-out;
+            border-radius: 2px;
+            position: relative;
+            z-index: 1;
+        }
+        .selecting {
+            background-color: #FBBF24;
+            color: #1F2937;
+        }
+        .first-click {
+            background-color: #FDE68A;
+            color: #1F2937;
+        }
+        .word-list-item.found {
+            text-decoration: line-through;
+            color: #6B7280;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            padding: 1rem;
+        }
+        .modal-content-box {
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+
+    <div class="max-w-7xl mx-auto p-2 sm:p-4 lg:p-8">
+        <header class="text-center mb-4 sm:mb-8">
+            <h1 class="text-3xl sm:text-5xl font-bold lora text-gray-900">Das Versteckte Wort</h1>
+            <p class="mt-2 text-base sm:text-lg text-gray-600">A German Wine Word Search</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-8">
+            <div id="game-container" class="lg:col-span-3 bg-white p-2 sm:p-4 rounded-xl shadow-lg border border-gray-200">
+                <div id="game-grid-wrapper">
+                    <div id="game-grid"></div>
+                    <div id="outline-container"></div>
+                </div>
+            </div>
+
+            <aside class="bg-white p-4 sm:p-6 rounded-xl shadow-lg border border-gray-200">
+                <h2 class="text-xl sm:text-2xl font-bold lora mb-4">Words to Find</h2>
+                <div id="word-list-container" class="h-80 sm:h-96 overflow-y-auto pr-2">
+                   <ul id="word-list" class="space-y-2 text-sm sm:text-base text-gray-700">
+                   </ul>
+                </div>
+                <div class="mt-4 sm:mt-6">
+                    <button id="reset-button" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                        New Game
+                    </button>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <div id="rules-modal" class="modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-lg m-4 transform transition-all modal-content-box" id="rules-content">
+            <div class="p-8">
+                <h3 class="text-3xl font-bold lora text-indigo-600 mb-6 text-center">Das Versteckte Wort</h3>
+                <div class="text-gray-600 text-lg text-left space-y-5">
+                    <p>Welcome to the ultimate word search of German Wine Terminology with over 150 unique terms, each with its definition!</p>
+                    <p>Every time you play, 15 random terms will generate. Find and define!</p>
+                    
+                    <hr>
+
+                    <div>
+                        <h4 class="font-bold">How to Play:</h4>
+                        <ul class="list-disc list-inside mt-2 space-y-1">
+                            <li>Words are hidden horizontally, vertically, or diagonally.</li>
+                            <li><strong>Click & Drag</strong> from the first letter to the last.</li>
+                            <li>Or, <strong>Click</strong> the first letter, then <strong>Click</strong> the last letter.</li>
+                        </ul>
+                    </div>
+                     <div class="mt-4 p-3 bg-indigo-50 rounded-lg text-center text-base">
+                        <p><strong>Mobile Tip:</strong> Use two fingers to pan around the grid if it's too large for your screen.</p>
+                    </div>
+                </div>
+                <button id="start-game-btn" class="mt-8 w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    Start Game
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="definition-modal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md m-4 transform transition-all modal-content-box" id="modal-content">
+            <div class="p-8">
+                <h3 id="modal-word" class="text-3xl font-bold lora text-indigo-600 mb-6 text-center"></h3>
+                <div id="modal-info" class="text-gray-700 text-left space-y-4">
+                </div>
+                <button id="modal-continue-btn" class="mt-8 w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    Continue
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="win-modal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-11/12 max-w-md m-4 transform transition-all p-8 text-center">
+             <h3 class="text-4xl font-bold lora text-emerald-600 mb-4">Glückwunsch!</h3>
+             <p class="text-gray-600 text-lg mb-8">You found all the words! Prost!</p>
+             <button id="win-new-game-btn" class="w-full bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
+                 Play Again
+             </button>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const gridWrapper = document.getElementById('game-grid-wrapper');
+        const gridElement = document.getElementById('game-grid');
+        const outlineContainer = document.getElementById('outline-container');
+        const wordListElement = document.getElementById('word-list');
+        const resetButton = document.getElementById('reset-button');
+        const definitionModal = document.getElementById('definition-modal');
+        const modalWord = document.getElementById('modal-word');
+        const modalInfo = document.getElementById('modal-info');
+        const modalContinueBtn = document.getElementById('modal-continue-btn');
+        const winModal = document.getElementById('win-modal');
+        const winNewGameBtn = document.getElementById('win-new-game-btn');
+        const rulesModal = document.getElementById('rules-modal');
+        const startGameBtn = document.getElementById('start-game-btn');
+
+        // --- UPDATED: German Wine Terminology Database ---
+        const rawWordData = `Abfüller:The bottler or filler of the wine, whose name and location must appear on the label. This is not always the same as the producer.;Abgang:The finish or aftertaste of a wine. A long, pleasant Abgang is a key indicator of a high-quality wine.;Ahr:A small, northern wine region specializing in red wines. It is famous for its steep, terraced vineyards of slate soil, which are ideal for producing elegant Spätburgunder (Pinot Noir).;Akolon:A modern red grape crossing of Blaufränkisch and Dornfelder. It is known for producing deeply colored, powerful red wines with soft tannins.;Alleinbesitz:A vineyard that is owned by a single entity, which is the German equivalent of a French monopole. These sites are rare and often prestigious.;Alte Reben:"Old vines." While not a legally defined term, it indicates that the wine is made from grapes of older vines, which typically produce lower yields of more concentrated and complex fruit.;A.P. Nr.:The official testing number assigned to a quality wine, short for Amtliche Prüfungsnummer. Every bottle of Qualitätswein and Prädikatswein must have this number, which guarantees the wine has passed rigorous chemical and sensory analysis.;Anbaugebiet:A major, protected wine-growing region. There are 13 Anbaugebiete in Germany (e.g., Mosel, Rheingau, Pfalz), and one must be named on the label of any quality wine.;Anreicherung:Enrichment, the German term for chaptalization. This is the process of adding sugar to the unfermented grape must to increase the final alcohol content of the wine, permissible only up to the Qualitätswein level.;Auslese:"Select harvest." A Prädikat level for wines made from very ripe grape bunches that have been manually selected in the vineyard. These wines are often intense and can be made in dry styles but are more famous for their noble sweet versions made with grapes affected by Edelfäule (noble rot).;Bacchus:An aromatic white grape crossing of a (Silvaner x Riesling) cross with Müller-Thurgau. It produces floral, grapey wines and is often used for sweeter styles.;Baden:The warmest, southernmost, and third-largest German wine region. It is known for its diverse soils, including volcanic rock (Kaiserstuhl) and loess, and is a specialist in the Burgunder (Pinot) family of grapes.;Badisch Rotgold:A rosé-like specialty from the Baden region. It must be made from a blend of at least 51% Grauburgunder (Pinot Gris) white grapes and the remainder Spätburgunder (Pinot Noir) red grapes, fermented together.;Barrique:A small 225-liter oak barrel used for fermentation or aging. Wines aged in these barrels, especially new ones, will pick up flavors of toast, vanilla, and spice.;Beerenauslese:"Berry selection." A Prädikat level for rich, honeyed dessert wines made from individually selected, overripe grapes that are almost always affected by noble rot.;Bereich:A district within an Anbaugebiet. A Bereich is a collection of vineyard sites, often named after a well-known wine village within it.;Weißherbst:A German rosé wine that must be made from a single red grape variety and must be at least Qualitätswein level. The wine must have a pale red or clear red color.;Bodentyp:Soil type. Germany's wine regions are famous for their diverse soil types, such as slate, limestone, and volcanic rock, which are key components of terroir.;Bocksbeutel:The flat, flask-shaped green or brown bottle with a short neck. It is a protected bottle shape traditional to the Franken region.;Botrytis cinerea:The Latin name for a beneficial fungus that, under the right conditions, causes "noble rot" (Edelfäule), concentrating the sugars and flavors in grapes to produce exceptional dessert wines.;Buntsandstein:Colored sandstone. A common soil type in regions like the Pfalz and Franken, which warms easily and is well-draining, often yielding wines with a robust body.;Burgunder:The German name for the Pinot family of grapes, including Spätburgunder (Pinot Noir), Grauburgunder (Pinot Gris), and Weissburgunder (Pinot Blanc).;Chardonnay:The classic international white grape variety. In Germany, it thrives in warmer regions like Baden and the Pfalz, often producing wines in a full-bodied, dry style.;Classic:A legally defined term for a harmoniously dry wine of above-average quality made from a single, traditional grape variety typical of its region.;Deutscher Sekt:Sparkling wine made in Germany using the tank or traditional method, exclusively from grapes grown in Germany.;Fuder:A traditional large oak cask used for aging wine, most commonly found in the Mosel region. It typically holds 1,000 liters and imparts minimal oak flavor due to its size and age, preserving the wine's delicate aromas.;Deutscher Wein:The most basic quality level of German wine, formerly known as Tafelwein. It has the least stringent regulations.;Diabas:A type of dark, iron-rich volcanic rock soil found in parts of the Nahe. It imparts a spicy, mineral character to the wines.;Domina:A successful red grape crossing of Portugieser and Spätburgunder. It is known for its deep color, firm tannins, and flavors of dark berries, thriving in the Franken region.;Domäne:A state-owned wine estate. Many of Germany's most historic and prestigious wineries are state domains.;Dornfelder:A highly successful red grape crossing of Helfensteiner and Heroldrebe. Originally bred for color, it now produces velvety, fruity, and deeply colored red wines.;Edelfäule:"Noble rot." The beneficial form of Botrytis cinerea, essential for creating the concentrated flavors and sweetness found in Beerenauslese and Trockenbeerenauslese wines.;Edelsüß:"Nobly sweet." A tasting term describing the profound, honeyed sweetness of the highest-level Prädikat wines (BA and TBA) that have been affected by noble rot.;Einzellage:A single, named vineyard, representing the smallest and most specific geographical unit of origin. The name of the Einzellage is often preceded by the village name on a label (e.g., Wehlener Sonnenuhr).;Eiswein:"Ice wine." A rare and intense dessert wine, a Prädikat level made from grapes with the ripeness of at least a Beerenauslese that have been harvested and pressed while naturally frozen on the vine. This concentrates the sugars and acidity.;Elbling:An ancient white grape variety, one of Europe's oldest. It is primarily grown in the upper Mosel region where it produces crisp, high-acid base wines for Sekt.;Erste Lage:"First site." The VDP's high-level classification for premier cru vineyards. These are top-quality sites with distinct characteristics, analogous to a Premier Cru in Burgundy.;Erstes Gewächs:A legally defined "first growth" classification exclusive to the Rheingau region for its top dry wines from the best vineyard sites, primarily Riesling and Spätburgunder.;Erzeugerabfüllung:"Producer-bottled." A term indicating the wine was bottled by the same person, estate, or cooperative that grew the grapes, ensuring a chain of quality.;Faberrebe:An aromatic white grape crossing of Weissburgunder and Müller-Thurgau. It ripens early and can produce wines with high acidity and muscat-like notes.;Fass:The general German word for a cask or barrel.;Federweisser:"Feather white." A cloudy, fermenting grape must (not yet wine) sold as a seasonal specialty in autumn, often served with onion tart.;Feinherb:A widely used but unofficial term for an off-dry wine. It typically indicates a wine that is slightly sweeter than halbtrocken, but the term is not legally defined.;Flaschengärung:Bottle fermentation. The method used for high-quality Sekt, where the secondary fermentation that creates the bubbles occurs in the individual bottle, also known as the traditional method.;Franken:A continental wine region in Bavaria, famous for its powerful, dry Silvaner and its use of the traditional Bocksbeutel bottle. Key soil types include shell-limestone (Muschelkalk) and colored marl (Keuper).;Frühburgunder:"Early Pinot." A mutation of Spätburgunder (Pinot Noir) that ripens two to three weeks earlier. It produces full-bodied, velvety red wines.;Gärung:The German word for fermentation.;Halbstück:A traditional German oak cask size of 600 liters, half of a Stückfass. It is commonly used in the Rheingau and allows for gentle maturation of the wine.;Gamza:The Bulgarian name for the Kadarka grape. In Germany, this red grape is found in small quantities and produces light-bodied, aromatic red wines.;Gewürztraminer:An intensely aromatic white grape variety, known for its distinctive notes of lychee, rose petals, and ginger.;Grauburgunder:The German name for Pinot Gris. When made in a dry, food-friendly style, it is called Grauburgunder; when made in a richer, fuller style, it is sometimes called Ruländer.;Grosse Lage:"Great site." The VDP's highest classification for the very best vineyards in Germany, equivalent to a grand cru. These sites are narrowly demarcated and express their terroir with exceptional character and aging potential.;Grosses Gewächs:"Great growth." The VDP's designation for a dry wine from a Grosse Lage vineyard. These are considered the pinnacle of dry German wines and are marked by the "GG" logo on the bottle.;Großlage:A collective vineyard site, which is a grouping of several individual vineyards (Einzellagen) under a single name. This term on a label can be misleading as it represents a much larger and less specific area than an Einzellage.;Gutedel:A white grape variety also known as Chasselas. In Germany, it is a specialty of the Baden region, where it produces light, neutral, and easy-to-drink wines.;Gutsabfüllung:"Estate-bottled." A guarantee that the wine was produced and bottled by the estate that grew the grapes. It is a hallmark of quality and traceability.;Gutswein:"Estate wine." This is the VDP's designation for good-quality, entry-level wines that originate from a producer's own estate vineyards within a single region, reflecting the house style.;Halbtrocken:"Half-dry." A legally defined term for an off-dry wine. The wine's residual sugar content is slightly higher than that of a dry (trocken) wine.;Hefe:The German word for yeast. Hefelager refers to aging on the lees, which adds texture and complexity to the wine.;Hessische Bergstrasse:A small, hilly wine region in western Germany known for its expressive Riesling wines.;Huxelrebe:A white grape crossing of Gutedel and Courtillier Musqué. It is a high-yielding variety capable of reaching very high ripeness levels, often used for sweet dessert wines.;Jahrgang:The German word for the vintage year, the year in which the grapes were harvested.;Johannisberg:A famous and historic wine village in the Rheingau, known for its world-class Riesling vineyards and its historical significance as the site where late-harvest wines were discovered.;Kabinett:The lightest and most delicate style within the Prädikat system. These wines are made from fully ripened grapes and are typically low in alcohol, ranging from dry to off-dry, with fine balance and elegance.;Kalkstein:Limestone soil. Prized in regions like Franken and parts of the Pfalz, it promotes good drainage and contributes to the structure and minerality of the wines.;Kaltgärung:Cold fermentation. A modern winemaking technique where fermentation is conducted at low temperatures, often in stainless steel tanks, to preserve the wine's delicate and fresh aromatic compounds.;Kellerei:A winery, cellar, or a large-scale wine producer. A Kellerei often buys grapes from many different growers rather than cultivating its own.;Kerner:A successful and widely planted white grape crossing of Trollinger and Riesling. It can produce aromatic, Riesling-like wines with good acidity, often with a slightly broader texture.;Keuper:A type of marl and gypsum-rich clay soil from the Triassic period. It is common in Franken and Württemberg and is known for producing powerful, spicy wines.;Lage:The German word for a site, specifically a vineyard site. This is a fundamental concept in German wine law and classification.;Lagenwein:A wine from a specific, named vineyard site (Einzellage). This term emphasizes the unique terroir of that single vineyard.;Landwein:"Country wine." A quality category that sits above Deutscher Wein, requiring the grapes to come from one of 26 specified Landwein regions. It is the German equivalent of the French Vin de Pays.;Lemberger:A premium red grape variety, also known as Blaufränkisch in Austria. In Germany, it is a specialty of Württemberg, producing structured, spicy red wines with dark berry flavors.;Liebfraumilch:A semi-sweet white wine blend, historically very popular for export but now associated with a lower quality image. It must be made primarily from Riesling, Silvaner, Müller-Thurgau, or Kerner.;Lieblich:A tasting term for a semi-sweet wine. It describes a wine with a noticeable level of sweetness, more than halbtrocken but not as sweet as a dessert wine.;Löss:Loess. A fine, wind-blown silt soil that is highly fertile and has good water retention. It is common in regions like Rheinhessen and the Kaiserstuhl in Baden.;Maischegärung:Fermentation on the skins. This process is standard for red wine production, where the grape must (juice, skins, seeds) ferments together to extract color, flavor, and tannins.;Malolaktische Gärung:Malolactic fermentation (MLF). A secondary fermentation that converts sharp malic acid into softer lactic acid, commonly used in red wines and some full-bodied white wines to create a rounder mouthfeel.;Mittelrhein:A dramatic wine region characterized by extremely steep, terraced vineyards along the Rhine River. It is known for its crisp, mineral-driven Rieslings.;Morio-Muskat:An aromatic white grape crossing of Silvaner and Weissburgunder. It is known for its intense, pungent Muscat-like aroma, even in cooler years.;Mosel:One of the world's most famous wine regions, renowned for its incredibly steep vineyards on heat-retaining slate soils. It produces exceptionally light, delicate, and mineral-driven Riesling wines.;Most:The unfermented grape juice, including skins, seeds, and stems. Its sugar content is measured to determine a wine's potential quality level.;Mostgewicht:"Must weight." The measure of the sugar density in the grape must, which indicates the potential alcohol or sweetness of the resulting wine. It is measured on the Oechsle scale.;Müller-Thurgau:A widely planted white grape crossing of Riesling and Madeleine Royale. Also known as Rivaner, it is an early-ripening variety that produces soft, floral, and gently aromatic wines.;Muschelkalk:Shelly limestone. A prominent soil type from the Triassic period, especially important in Franken. It is composed of fossilized sea shells and contributes a distinct minerality and structure to the wines.;Nahe:A diverse wine region named after the Nahe river, known for having an exceptionally wide variety of soil types, including volcanic rock, slate, and sandstone. This diversity allows it to produce a broad range of Riesling styles.;Naturwein:"Natural wine." While not a legally defined term in Germany, it generally refers to wines made with minimal intervention, spontaneous fermentation, and little to no added sulfur.;Oechsle:The scale used in Germany to measure the density, or must weight, of grape juice. This measurement is the basis for the Prädikat system.;Ortswein:"Village wine." The VDP's classification for wines that come from a specific village's best traditional vineyards. It is a step up from Gutswein and expresses the character of the local terroir.;Perlwein:A lightly sparkling wine. It has less carbon dioxide pressure than Sekt and is therefore subject to a lower tax. It is often sealed with a screw cap.;Pfalz:Germany's second-largest wine region, known for its sunny and dry climate, almost Mediterranean in style. It produces a wide variety of grapes, including powerful, dry Rieslings, and is a major center for the Burgunder varieties.;Portugieser:A red grape variety that produces light-bodied, simple, and fruity red wines for early consumption. It is often used for rosé as well.;Prädikat:"A special attribute." This term is the basis for the highest quality level of German wine, Prädikatswein, which is classified based on the natural ripeness (sugar level) of the grapes at harvest.;Prädikatswein:"Quality wine with special attributes." The highest tier in the German wine classification system. Chaptalization is strictly forbidden, and the wines are categorized into six levels based on ripeness: Kabinett, Spätlese, Auslese, Beerenauslese, Eiswein, and Trockenbeerenauslese.;Qualitätswein:"Quality wine." A large and important category of German wine that must come from one of the 13 specified Anbaugebiete. The term QbA (Qualitätswein bestimmter Anbaugebiete) is often used. Chaptalization is permitted for this category.;Rauchig:"Smoky." A tasting note often used to describe the mineral character of wines grown on slate soils, particularly in the Mosel.;Rebe:A single grapevine plant.;Rebsorte:The German word for a grape variety.;Regent:A modern, fungus-resistant red grape variety developed in Germany. It produces deeply colored wines with soft tannins.;Rheingau:A prestigious and historically significant wine region located on a south-facing slope of the Rhine River. It is famous for its powerful, structured Rieslings and high-quality Spätburgunder, grown mainly on slate and quartzite soils.;Rheinhessen:Germany's largest wine-growing region. Historically known for Liebfraumilch, it is now a dynamic region producing high-quality wines, especially dry Rieslings from the famous "Roter Hang" (red slope) near Nierstein.;Rieslaner:A high-quality white grape crossing of Silvaner and Riesling. It is known for its piercing acidity and ability to produce excellent sweet and dessert wines.;Riesling:Germany's most famous and noble white grape variety. It is renowned for its transparency to terroir, high acidity, and ability to produce wines ranging in style from bone dry to lusciously sweet, all with incredible aging potential.;Rivaner:A common synonym for the Müller-Thurgau grape variety.;Roséwein:Rosé wine. In Germany, it is typically made by limiting the skin contact of red grapes during winemaking.;Rotling:A rosé-style wine made from a mixture of red and white grapes that are mashed and fermented together. Schillerwein is a famous Rotling from Württemberg.;Rotwein:The German word for red wine.;Ruländer:A synonym for Grauburgunder (Pinot Gris), typically used to denote a richer, fuller-bodied, or sweeter style of the wine.;Saale-Unstrut:One of Germany's northernmost wine regions, located in the former East Germany. It has a cool continental climate and is known for its crisp white wines.;Sachsen:Germany's easternmost and smallest wine region. It is known for its continental climate and labor-intensive viticulture on steep, terraced vineyards along the Elbe River.;Säure:The German word for acidity. It is a crucial component in German wines, especially Riesling, providing structure, freshness, and longevity, and balancing any residual sugar.;Schäumer:A colloquial term for a sparkling wine.;Schaumwein:The generic legal term for any sparkling wine, including those made with carbonation.;Scheurebe:An aromatic white grape crossing of Riesling and Bukettrebe. It is known for its powerful aromas of pink grapefruit, cassis, and tropical fruit, and it can produce excellent dry and dessert wines.;Schiefer:The German word for slate. This is a key soil type in the Mosel, as well as parts of the Rheingau and Ahr. It retains heat, provides excellent drainage, and imparts a distinctive smoky minerality to the wines.;Schillerwein:A type of Rotling that is a specialty of the Württemberg region. It must be a Qualitätswein and is a traditional local favorite.;Schloss:The German word for a castle or château. On a wine label, it is often part of a historic wine estate's name (e.g., Schloss Johannisberg).;Schlossabzug:"Castle-bottled." An older, traditional term for estate-bottled, indicating the wine was bottled at the castle or estate where it was produced.;Schwarzriesling:"Black Riesling." The German name for the Pinot Meunier grape, which is not related to Riesling. It is a key variety in the Württemberg region.;Sekt:The German term for quality sparkling wine. To be called Sekt, the wine must undergo a secondary fermentation to create its bubbles.;Sekt b.A.:Sekt from a specified quality region (bestimmter Anbaugebiete). This indicates a higher level of quality, with the grapes sourced from one of the 13 Anbaugebiete.;Selection:A legally defined term for high-quality, hand-harvested, dry wines from a single, named vineyard site, primarily used in the Rheingau.;Silvaner:A traditional and important white grape variety, especially in Franken and Rheinhessen. It produces wines that can range from neutral and food-friendly to powerful and terroir-driven, often with earthy notes.;Sommerwein:"Summer wine." A term for a light, fresh, and easy-to-drink wine, perfect for warm weather.;Spätburgunder:"Late Burgundian." The German name for Pinot Noir, the country's most prestigious and widely planted red grape. It excels in warmer regions like Baden and the Ahr.;Spätlese:"Late harvest." A Prädikat level for wines made from ripe grapes harvested after the main harvest. These wines are more intense and concentrated in flavor than Kabinett and can be dry or off-dry.;Steillage:A steep-slope vineyard, legally defined as having a gradient of over 30%. These sites are prized for their excellent sun exposure and drainage but are extremely labor-intensive to farm.;Stück:A large traditional oak cask of 1,200 liters, historically common in the Rheingau. Its large size ensures very slow and gentle maturation of the wine.;Süß:The German word for sweet.;Süßreserve:"Sweet reserve." Sterilized, unfermented grape must that is legally permitted to be added to a finished wine before bottling to increase its final sweetness level. This technique allows for precise control over the wine's balance.;Tafelwein:"Table wine." The former name for Germany's most basic wine category, now officially known as Deutscher Wein.;Tannin:The German word is also Tannin. These are phenolic compounds derived from grape skins, seeds, and stems (and oak) that create a drying, astringent sensation in the mouth and are crucial for the structure and aging potential of red wines.;Terroir:This French term is also widely used in Germany to describe the unique combination of a vineyard's soil, climate, topography, and human factors that together shape a wine's character.;Trocken:The German word for "dry." Legally, a wine labeled trocken must have very little or no perceptible residual sugar.;Trockenbeerenauslese:"Dry berry selection." The highest and rarest Prädikat level. These wines are made from individually selected, shriveled, raisin-like grapes that are intensely concentrated by noble rot, resulting in extraordinarily rich, sweet, and long-lived dessert wines.;Trollinger:A light-bodied, fruity red grape that is a specialty of the Württemberg region, where it is beloved as the local "national drink." It is meant to be consumed young.;VDP:The Verband Deutscher Prädikatsweingüter. A prestigious and influential association of elite German wine estates. The VDP has its own private, terroir-based vineyard classification system, and its eagle logo is a symbol of high quality.;Verkostung:A wine tasting or flight of wines.;Vollmundig:A tasting term meaning "full-bodied." It describes a wine with a rich, weighty, and substantial feeling on the palate.;Vulkanerde:Volcanic soil. Found in specific areas like the Kaiserstuhl in Baden, this soil type is rich in minerals and produces powerful, spicy wines.;Wein:The German word for wine.;Weinbau:The German word for viticulture, which encompasses the science, study, and practice of grape growing.;Weingut:A wine estate or wine-producing property. This term on a label indicates that the wine was produced by the estate that grew the grapes.;Weinkellerei:A large wine cellar, winery, or wine merchant. A Weinkellerei often buys grapes or bulk wine from other sources for blending and bottling.;Weinprobe:A wine tasting or wine sampling event.;Weinsäure:Tartaric acid. This is the primary natural acid found in grapes and is crucial for a wine's crisp taste, stability, and aging potential.;Weißburgunder:The German name for Pinot Blanc. It produces versatile wines that can range from light and crisp to full-bodied and creamy, especially when aged in oak.;Winzer:The German word for the winemaker or winegrower.;Winzergenossenschaft:A winegrowers' cooperative. This is an organization where many smaller grape growers pool their resources to produce and market wine collectively.;Württemberg:A large German wine region, unique for its focus on red wines, which account for the majority of its production. It is the heartland of Trollinger, Lemberger, and Schwarzriesling.;Zucker:The German word for sugar.;Zweigelt:An Austrian red grape crossing of St. Laurent and Blaufränkisch. It is also grown in Germany where it produces bright, cherry-fruited red wines.;Roter Hang:A famous stretch of red slate and clay soil vineyards sloping towards the Rhine near the town of Nierstein in Rheinhessen, known for producing powerful and complex Rieslings.;Schlegel:The traditional tall, slender bottle shape used for German wines. It is typically brown for Rheingau wines and green for Mosel wines.;Bernkastel:A famous and historic wine town on the Mosel river, home to some of the world's most renowned Riesling vineyards, including the famous Doktor vineyard.;Piesport:A key wine village in the Mosel, known for the Goldtröpfchen vineyard, a large natural amphitheater of slate that produces classic, mineral-driven Rieslings.;Rüdesheim:A prominent wine town in the Rheingau, located at a steep, south-facing bend of the Rhine. Its quartzite and slate soils produce powerful, long-lived Rieslings.;Nierstein:A well-known wine town in Rheinhessen, famous for being the heart of the Roter Hang (red slope), which produces some of Germany's most powerful and full-bodied Rieslings.;Oppenheim:A historic wine town in Rheinhessen, south of Nierstein, also known for its quality Riesling sites.;Forst:A top wine village in the Pfalz region, renowned for its basalt soils and powerful, mineral-rich Rieslings from vineyards like Pechstein and Ungeheuer.;Deidesheim:A neighboring renowned wine village in the Pfalz, known for its elegant and structured Rieslings from sandstone and limestone soils.;Kaiserstuhl:A volcanic outcrop in the Baden region. It is Germany's warmest location, creating ideal conditions for ripe, full-bodied wines from the Burgunder (Pinot) family.;Iphofen:A famous walled wine town in Franken, particularly celebrated for its high-quality, terroir-driven Silvaner wines from gypsum-keuper soils.;Würzburg:A major city and wine center in Franken, dominated by the iconic Würzburger Stein vineyard, a massive shell-limestone slope that is one of Germany's most famous sites.;Filtration:The process of clarifying wine by passing it through a filter to remove yeast cells and other solid particles before bottling.;Holzfass:The German term for a wooden cask or barrel, which can come in many different sizes.;Stahltank:The German term for a stainless steel tank, widely used for fermentation and aging to preserve the fresh, fruity character of white wines.;Ortega:A white grape crossing of Müller-Thurgau and Siegerrebe. It ripens very early and can achieve high must weights, making it suitable for sweet dessert wines.;Siegerrebe:"Victory vine." An aromatic white grape crossing of Madeleine Angevine and Gewürztraminer. It has an extremely pungent aroma and is used to produce aromatic wines and sweet Auslesen.;Klevener:A local synonym for the Gewürztraminer grape used in the village of Heiligenstein in Alsace, but historically used in Baden as well.;Johanniter:A modern, fungus-resistant white grape variety developed in Freiburg, a crossing of Riesling, Seyve-Villard, Ruländer, and Gutedel, known for producing good quality, Riesling-like wines.;`;
+        
+        let allWords = [];
+        let wordsForCurrentGame = [];
+
+        const GRID_SIZE = 25;
+        const WORDS_PER_GAME = 15;
+        
+        const DRAG_THRESHOLD = 10;
+        let grid = [];
+        let selectionStart = null;
+        let selectionEnd = null;
+        let foundWords = new Set();
+        let firstClickCell = null;
+        
+        let activeState = {
+            isDown: false,
+            isDragging: false,
+            isPanning: false,
+            panStart: { x: 0, y: 0 },
+            scrollStart: { left: 0, top: 0 },
+            touchStartCoords: { x: 0, y: 0 }
+        };
+
+        function parseAllWords() {
+            allWords = rawWordData.split(';')
+                .filter(item => item.trim() !== '')
+                .map(item => {
+                    const parts = item.split(/:(.*)/s);
+                    const term = parts[0];
+                    const definition = parts[1];
+                    if (!term || typeof definition === 'undefined') return null;
+                    return {
+                        term: term.trim(),
+                        info: { definition: definition.trim() }
+                    };
+                }).filter(Boolean);
+        }
+        
+        function selectWordsForGame() {
+            const shuffled = [...allWords].sort(() => 0.5 - Math.random());
+            wordsForCurrentGame = JSON.parse(JSON.stringify(shuffled.slice(0, WORDS_PER_GAME)));
+        }
+
+        // --- UPDATED: Sanitization function to handle German characters ---
+        function sanitizeWord(word) {
+            // First, replace 'ß' with 'SS', its standard uppercase equivalent.
+            const termWithSS = word.term.replace(/ß/g, 'SS');
+            // Then, normalize to separate letters from diacritics (e.g., 'ü' becomes 'u' + '¨').
+            // The regex then removes the standalone diacritic marks.
+            const normalized = termWithSS.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // Finally, convert to uppercase and remove any remaining non-alphabetic characters (like hyphens or periods).
+            return normalized.toUpperCase().replace(/[^A-Z]/g, '');
+        }
+
+        function initializeGame() {
+            foundWords.clear();
+            selectWordsForGame(); 
+            wordsForCurrentGame.forEach(w => w.sanitized = sanitizeWord(w));
+            
+            outlineContainer.innerHTML = '';
+            clearFirstClickHighlight();
+            firstClickCell = null;
+            
+            let allWordsPlaced = false;
+            let placementAttempts = 0;
+            while(!allWordsPlaced && placementAttempts < 20) {
+                grid = createEmptyGrid();
+                placeWordsInGrid();
+                if (wordsForCurrentGame.every(w => w.placed)) {
+                    allWordsPlaced = true;
+                }
+                placementAttempts++;
+            }
+            if(!allWordsPlaced) {
+                console.error("Failed to place all words after multiple attempts.");
+                // Use a custom modal instead of alert in a real app
+                // For this example, alert is kept for simplicity.
+                // alert("Error: Could not create the word search. Please try reloading.");
+                return; // Stop execution if grid fails
+            }
+
+            fillEmptyCells();
+            renderGrid();
+            renderWordList();
+            definitionModal.classList.add('hidden');
+            winModal.classList.add('hidden');
+        }
+
+        function createEmptyGrid(fillValue = null) {
+            return Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(fillValue));
+        }
+
+        function placeWordsInGrid() {
+            const directions = [ { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }, { x: 1, y: 1 }, { x: -1, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 1 } ];
+            const sortedWords = [...wordsForCurrentGame].sort((a, b) => b.sanitized.length - a.sanitized.length);
+
+            for (const wordObj of sortedWords) {
+                const word = wordObj.sanitized;
+                wordObj.placed = false;
+                
+                const startCells = [];
+                for(let r=0; r<GRID_SIZE; r++) for(let c=0; c<GRID_SIZE; c++) startCells.push({r, c});
+                shuffle(startCells);
+
+                for (const startCell of startCells) {
+                    if (wordObj.placed) break;
+                    
+                    shuffle(directions);
+                    for (const dir of directions) {
+                        if (canPlaceWord(word, startCell.r, startCell.c, dir)) {
+                            for (let i = 0; i < word.length; i++) grid[startCell.r + i * dir.y][startCell.c + i * dir.x] = word[i];
+                            wordObj.placed = true;
+                            wordObj.start = { row: startCell.r, col: startCell.c };
+                            wordObj.end = { row: startCell.r + (word.length - 1) * dir.y, col: startCell.c + (word.length - 1) * dir.x };
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function canPlaceWord(word, startRow, startCol, dir) {
+            for (let i = 0; i < word.length; i++) {
+                const row = startRow + i * dir.y;
+                const col = startCol + i * dir.x;
+                if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) return false;
+                const cell = grid[row][col];
+                if (cell !== null && cell !== word[i]) return false;
+            }
+            return true;
+        }
+
+        function fillEmptyCells() {
+            const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            for (let r = 0; r < GRID_SIZE; r++) for (let c = 0; c < GRID_SIZE; c++) if (grid[r][c] === null) grid[r][c] = alphabet[Math.floor(Math.random() * alphabet.length)];
+        }
+
+        function renderGrid() {
+            gridElement.innerHTML = '';
+            gridElement.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
+            gridElement.style.gridTemplateRows = `repeat(${GRID_SIZE}, 1fr)`;
+
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.textContent = grid[r][c];
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        function renderWordList() {
+            wordListElement.innerHTML = '';
+            wordsForCurrentGame.sort((a,b) => a.term.localeCompare(b.term)).forEach(word => {
+                const li = document.createElement('li');
+                li.textContent = word.term;
+                li.classList.add('word-list-item', 'transition-colors', 'duration-300');
+                if (foundWords.has(word.sanitized)) li.classList.add('found');
+                wordListElement.appendChild(li);
+            });
+        }
+        
+        function getCellFromEvent(evt) {
+            const targetElement = document.elementFromPoint(evt.clientX, evt.clientY);
+            if (!targetElement) return null;
+            const cellElement = targetElement.closest('.grid-cell');
+            if (!cellElement) return null;
+            return {
+                row: parseInt(cellElement.dataset.row),
+                col: parseInt(cellElement.dataset.col),
+                element: cellElement
+            };
+        }
+
+        function handleMouseDown(e) {
+            e.preventDefault();
+            const cell = getCellFromEvent(e);
+            if (!cell) return;
+            activeState.isDown = true;
+            selectionStart = cell;
+            selectionEnd = cell;
+        }
+
+        function handleMouseMove(e) {
+            if (!activeState.isDown) return;
+            e.preventDefault();
+            activeState.isDragging = true;
+            const cell = getCellFromEvent(e);
+            if (cell && selectionEnd && (cell.row !== selectionEnd.row || cell.col !== selectionEnd.col)) {
+                selectionEnd = cell;
+                clearFirstClickHighlight();
+                firstClickCell = null;
+                highlightSelection();
+            }
+        }
+
+        function handleMouseUp(e) {
+            if (!activeState.isDown) return;
+            e.preventDefault();
+            if (activeState.isDragging) {
+                checkSelection();
+                clearSelectionHighlights();
+            } else {
+                handleCellClick(selectionStart);
+            }
+            activeState.isDown = false;
+            activeState.isDragging = false;
+        }
+
+        function handleTouchStart(e) {
+            if (e.touches.length >= 2) {
+                e.preventDefault();
+                activeState.isPanning = true;
+                activeState.isDown = false; 
+                activeState.isDragging = false;
+                clearSelectionHighlights();
+                
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                activeState.panStart = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+                activeState.scrollStart = { left: gridWrapper.scrollLeft, top: gridWrapper.scrollTop };
+                return; 
+            }
+    
+            if (e.touches.length === 1) {
+                if (!activeState.isPanning) {
+                    e.preventDefault();
+                    activeState.isDown = true;
+                    activeState.isDragging = false;
+                    const touch = e.touches[0];
+                    activeState.touchStartCoords = { x: touch.clientX, y: touch.clientY };
+                    selectionStart = getCellFromEvent(touch);
+                    selectionEnd = selectionStart;
+                }
+            }
+        }
+        
+        function handleTouchMove(e) {
+            if (activeState.isPanning && e.touches.length >= 2) {
+                e.preventDefault();
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const currentPan = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+                const dx = currentPan.x - activeState.panStart.x;
+                const dy = currentPan.y - activeState.panStart.y;
+                gridWrapper.scrollLeft = activeState.scrollStart.left - dx;
+                gridWrapper.scrollTop = activeState.scrollStart.top - dy;
+            } else if (activeState.isDown && !activeState.isPanning) { 
+                e.preventDefault();
+                const touch = e.touches[0];
+
+                if (!activeState.isDragging) {
+                    const dx = touch.clientX - activeState.touchStartCoords.x;
+                    const dy = touch.clientY - activeState.touchStartCoords.y;
+                    if (Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+                        activeState.isDragging = true;
+                        clearFirstClickHighlight();
+                        firstClickCell = null;
+                    }
+                }
+
+                if (activeState.isDragging) {
+                    const cell = getCellFromEvent(touch);
+                    if (cell && selectionEnd && (cell.row !== selectionEnd.row || cell.col !== selectionEnd.col)) {
+                        selectionEnd = cell;
+                        highlightSelection();
+                    }
+                }
+            }
+        }
+        
+        function handleTouchEnd(e) {
+            if (activeState.isDown && !activeState.isPanning) {
+                if (activeState.isDragging) {
+                    checkSelection();
+                    clearSelectionHighlights();
+                } else {
+                    handleCellClick(selectionStart);
+                }
+            }
+            
+            if (e.touches.length === 0) {
+                activeState.isDown = false;
+                activeState.isDragging = false;
+                activeState.isPanning = false;
+            } else if (e.touches.length === 1) {
+                activeState.isPanning = false;
+            }
+        }
+
+        function handleCellClick(cell) {
+            if (!cell) return;
+            if (!firstClickCell) {
+                firstClickCell = cell;
+                if (cell.element) cell.element.classList.add('first-click');
+            } else {
+                selectionStart = firstClickCell;
+                selectionEnd = cell;
+                checkSelection();
+                clearFirstClickHighlight();
+                firstClickCell = null;
+            }
+        }
+        
+        function clearFirstClickHighlight() {
+            const highlighted = document.querySelector('.first-click');
+            if (highlighted) highlighted.classList.remove('first-click');
+        }
+
+        function highlightSelection() {
+            clearSelectionHighlights();
+            const cellsToHighlight = getCellsBetween(selectionStart, selectionEnd);
+            cellsToHighlight.forEach(({ row, col }) => {
+                const cellEl = gridElement.querySelector(`[data-row='${row}'][data-col='${col}']`);
+                if (cellEl) cellEl.classList.add('selecting');
+            });
+        }
+        
+        function clearSelectionHighlights() {
+            document.querySelectorAll('.grid-cell.selecting').forEach(el => el.classList.remove('selecting'));
+        }
+
+        function getCellsBetween(start, end) {
+            const cells = [];
+            if (!start || !end) return cells;
+            let { row: r1, col: c1 } = start;
+            let { row: r2, col: c2 } = end;
+            const dx = Math.abs(c2 - c1), dy = Math.abs(r2 - r1);
+            if (r1 === r2 || c1 === c2 || dx === dy) {
+                const sx = Math.sign(c2 - c1), sy = Math.sign(r2 - r1);
+                const steps = Math.max(dx, dy);
+                for (let i = 0; i <= steps; i++) cells.push({ row: r1 + i * sy, col: c1 + i * sx });
+            } else {
+                cells.push({ row: r1, col: c1 });
+            }
+            return cells;
+        }
+
+        function checkSelection() {
+            if (!selectionStart || !selectionEnd) return;
+            const selStart = selectionStart;
+            const selEnd = selectionEnd;
+            const wordFound = wordsForCurrentGame.find(w => {
+                if (!w.placed || foundWords.has(w.sanitized)) return false;
+                const forwardMatch = (selStart.row === w.start.row && selStart.col === w.start.col && selEnd.row === w.end.row && selEnd.col === w.end.col);
+                const backwardMatch = (selStart.row === w.end.row && selStart.col === w.end.col && selEnd.row === w.start.row && selEnd.col === w.start.col);
+                return forwardMatch || backwardMatch;
+            });
+            
+            if (wordFound) {
+                foundWords.add(wordFound.sanitized);
+                const selectedCells = getCellsBetween(selectionStart, selectionEnd);
+                markWordAsFound(selectedCells, wordFound);
+            }
+        }
+
+        function markWordAsFound(cells, word) {
+            drawWordOutline(cells);
+            renderWordList();
+            showDefinitionModal(word);
+        }
+
+        function drawWordOutline(cells) {
+            const startCell = gridElement.querySelector(`[data-row='${cells[0].row}'][data-col='${cells[0].col}']`);
+            const endCell = gridElement.querySelector(`[data-row='${cells[cells.length - 1].row}'][data-col='${cells[cells.length - 1].col}']`);
+            if (!startCell || !endCell) return;
+            
+            const cellWidth = startCell.offsetWidth;
+            const cellHeight = startCell.offsetHeight;
+            const startCenter = { x: startCell.offsetLeft + cellWidth / 2, y: startCell.offsetTop + cellHeight / 2 };
+            const endCenter = { x: endCell.offsetLeft + cellWidth / 2, y: endCell.offsetTop + cellHeight / 2 };
+
+            const angle = Math.atan2(endCenter.y - startCenter.y, endCenter.x - startCenter.x);
+            const distance = Math.hypot(endCenter.x - startCenter.x, endCenter.y - startCenter.y);
+            
+            const outlineWidth = distance + cellWidth;
+            const outlineHeight = cellHeight * 0.9;
+
+            const midPoint = { x: (startCenter.x + endCenter.x) / 2, y: (startCenter.y + endCenter.y) / 2 };
+            
+            const outline = document.createElement('div');
+            outline.classList.add('word-outline');
+            outline.style.width = `${outlineWidth}px`;
+            outline.style.height = `${outlineHeight}px`;
+            outline.style.left = `${midPoint.x - outlineWidth / 2}px`;
+            outline.style.top = `${midPoint.y - outlineHeight / 2}px`;
+            outline.style.transform = `rotate(${angle}rad)`;
+            outlineContainer.appendChild(outline);
+        }
+
+        function showDefinitionModal(word) {
+            modalWord.textContent = word.term;
+            modalInfo.innerHTML = `
+                <div>
+                    <span class="font-semibold text-gray-900">Definition:</span>
+                    <p class="mt-1 text-gray-600">${word.info.definition}</p>
+                </div>
+            `;
+            definitionModal.classList.remove('hidden');
+        }
+
+        function hideDefinitionModal() {
+            definitionModal.classList.add('hidden');
+            if (foundWords.size === wordsForCurrentGame.filter(w => w.placed).length) {
+                setTimeout(() => winModal.classList.remove('hidden'), 200);
+            }
+        }
+        
+        function resetAndStartNewGame() {
+            winModal.classList.add('hidden');
+            initializeGame();
+        }
+
+        resetButton.addEventListener('click', initializeGame);
+        modalContinueBtn.addEventListener('click', hideDefinitionModal);
+        winNewGameBtn.addEventListener('click', resetAndStartNewGame);
+        
+        startGameBtn.addEventListener('click', () => {
+            rulesModal.classList.add('hidden');
+            initializeGame();
+        });
+
+        gridWrapper.addEventListener('mousedown', handleMouseDown);
+        gridWrapper.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        
+        gridWrapper.addEventListener('touchstart', handleTouchStart, { passive: false });
+        gridWrapper.addEventListener('touchmove', handleTouchMove, { passive: false });
+        gridWrapper.addEventListener('touchend', handleTouchEnd);
+        gridWrapper.addEventListener('touchcancel', handleTouchEnd);
+        
+        parseAllWords();
+    });
+    </script>
+
+</body>
+</html>
